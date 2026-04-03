@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Orders</title>
+</head>
+<body>
+  <h1>📋 Orders</h1>
+
+  <ul id="orders"></ul>
+
+  <script>
+    function loadOrders() {
+      fetch('/orders')
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById('orders');
+          list.innerHTML = "";
+
+          data.forEach(order => {
+            const li = document.createElement('li');
+
+            const items = JSON.parse(order.items);
+
+            // 合併相同 item（關鍵🔥）
+            const merged = {};
+
+            items.forEach(i => {
+            if (!merged[i.id]) {
+                merged[i.id] = 0;
+            }
+            merged[i.id] += i.qty;
+            });
+
+            // menu 對照（簡單版）
+            const menuMap = {
+            1: "牛肉鍋",
+            2: "豬肉鍋",
+            3: "羊肉鍋"
+            };
+
+            const itemText = Object.entries(merged)
+            .map(([id, qty]) => `${menuMap[id]} x ${qty}`)
+            .join(", ");
+
+            li.innerText = `
+                Table ${order.table_id} - 
+                ${itemText}
+                [${order.status}]
+                `;
+
+            list.appendChild(li);
+          });
+        });
+    }
+
+    loadOrders();
+
+    // 每 3 秒更新一次（像餐廳）
+    setInterval(loadOrders, 3000);
+  </script>
+</body>
+</html>
