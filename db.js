@@ -8,7 +8,12 @@ db.serialize(() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_id INTEGER,
       items TEXT,
-      status TEXT
+      subtotal REAL,
+      tax REAL,
+      total REAL,
+      meal_period TEXT,
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 });
