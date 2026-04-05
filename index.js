@@ -1,13 +1,22 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const db = require('./db');
+const { createDb } = require('./db');
+
+const productionDb = createDb('./database.db');
+const testDb = createDb('./test.db');
 
 // CORS
 app.use(cors());
 
 app.use(express.json());
 app.use(express.static('public'));
+
+// 根據 mode 參數選擇資料庫
+app.use((req, res, next) => {
+  req.db = req.query.mode === 'test' ? testDb : productionDb;
+  next();
+});
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -48,7 +57,7 @@ app.post('/order', (req, res) => {
   const total = parseFloat((subtotal + tax).toFixed(2));
   const meal_period = getMealPeriod();
 
-  db.run(
+  req.db.run(
     `INSERT INTO orders (table_id, items, subtotal, tax, total, meal_period, status) VALUES (?, ?, ?, ?, ?, ?, 'active')`,
     [table, JSON.stringify(items), subtotal, tax, total, meal_period],
     function (err) {
@@ -60,7 +69,7 @@ app.post('/order', (req, res) => {
 
 // 取得全部訂單
 app.get('/orders', (req, res) => {
-  db.all(`SELECT * FROM orders ORDER BY created_at DESC`, [], (err, rows) => {
+  req.db.all(`SELECT * FROM orders ORDER BY created_at DESC`, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
@@ -69,7 +78,7 @@ app.get('/orders', (req, res) => {
 // 更新訂單狀態
 app.put('/order/:id', (req, res) => {
   const { status } = req.body;
-  db.run(`UPDATE orders SET status = ? WHERE id = ?`, [status, req.params.id], function (err) {
+  req.db.run(`UPDATE orders SET status = ? WHERE id = ?`, [status, req.params.id], function (err) {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ message: 'Order updated' });
   });
@@ -77,7 +86,7 @@ app.put('/order/:id', (req, res) => {
 
 // Checkout 整桌
 app.put('/checkout/:tableId', (req, res) => {
-  db.run(`UPDATE orders SET status = 'paid' WHERE table_id = ? AND status = 'active'`,
+  req.db.run(`UPDATE orders SET status = 'paid' WHERE table_id = ? AND status = 'active'`,
     [req.params.tableId],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
@@ -90,7 +99,7 @@ app.put('/checkout/:tableId', (req, res) => {
 
 // 當日總收入
 app.get('/dashboard/today', (req, res) => {
-  db.get(
+  req.db.get(
     `SELECT
       COUNT(*) as order_count,
       COALESCE(SUM(subtotal), 0) as total_subtotal,
@@ -108,7 +117,7 @@ app.get('/dashboard/today', (req, res) => {
 
 // 每桌消費記錄（今日）
 app.get('/dashboard/tables', (req, res) => {
-  db.all(
+  req.db.all(
     `SELECT
       table_id,
       COUNT(*) as order_count,
@@ -129,7 +138,7 @@ app.get('/dashboard/tables', (req, res) => {
 
 // 各盤子銷售數量（今日）
 app.get('/dashboard/plates', (req, res) => {
-  db.all(
+  req.db.all(
     `SELECT items FROM orders WHERE date(created_at) = date('now', 'localtime')`,
     [],
     (err, rows) => {
@@ -149,7 +158,7 @@ app.get('/dashboard/plates', (req, res) => {
 
 // 用餐時段統計（今日）
 app.get('/dashboard/periods', (req, res) => {
-  db.all(
+  req.db.all(
     `SELECT
       meal_period,
       COUNT(*) as order_count,
